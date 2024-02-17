@@ -3,14 +3,17 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 
 public abstract class MenuControllerService : ScriptableObject
 {
-    [SerializeField] PlayerInputService _inputService;
-    PlayerInputService InputService => _inputService;
+    [SerializeField] PlayerControlsInputService _inputService;
+    PlayerControlsInputService InputService => _inputService;
 
     [Header("Element 0 should be the initial page for this menu")]
     [SerializeField] GameObject[] _pagePrefabs;
+    [SerializeField] ControlSchemeButtonIcons[] _controlSchemeIcons;
+    ControlSchemeButtonIcons[] ControlSchemeIcons => _controlSchemeIcons;
     UIElement[] Pages { get; set; } 
     Stack<UIElement> Stack { get; } = new();
 
@@ -33,10 +36,19 @@ public abstract class MenuControllerService : ScriptableObject
         Pages = pagesList.ToArray();
     }
 
-    public abstract void SubscribeEvents();
-    public abstract void UnsubscribeEvents();
+    protected abstract void SubscribeEvents();
+    protected abstract void UnsubscribeEvents();
 
-    public T GetPage<T>() where T : UIElement {
+    void SubscribeInputEvents() {
+        InputService.UICancelEvent += Back;
+        InputService.ControlSchemeChangedEvent += OnControlSchemeChange;
+    }
+    void UnsubscribeInputEvents() {
+        InputService.UICancelEvent -= Back;
+        InputService.ControlSchemeChangedEvent -= OnControlSchemeChange;
+    }
+
+    protected T GetPage<T>() where T : UIElement {
         for(int i = 0; i < Pages.Length; i++) {
             if(Pages[i] is T page) return page;
         } 
@@ -48,10 +60,11 @@ public abstract class MenuControllerService : ScriptableObject
     public void Open() {
         if(Stack.TryPeek(out UIElement top)) return;
         InputService.CurrentActionMap = InputService.Controls.UI;
-        InputService.UICancelEvent += Back;
         Stack.Push(Pages[0]);
         Pages[0].Show();
         MenuOpenedEvent?.Invoke();
+        SubscribeInputEvents();
+        OnControlSchemeChange(InputService.CurrentControlScheme);
         SubscribeEvents();
     }
 
@@ -65,17 +78,17 @@ public abstract class MenuControllerService : ScriptableObject
     }
     
     /// <summary> Closes the entire Menu </summary>
-    public void Close() {
+    protected void Close() {
         while(Stack.Count > 0) Back(true);
-        InputService.UICancelEvent -= Back;
         MenuClosedEvent?.Invoke();
+        UnsubscribeInputEvents();
         UnsubscribeEvents();
     }
 
-    public void Back() {
+    protected void Back() {
         Back(false);
     }
-    public void Back(bool force) {
+    void Back(bool force) {
         Stack.Pop().Hide(force);
         if(!Stack.TryPeek(out UIElement prev)) {
             Close();
@@ -83,5 +96,24 @@ public abstract class MenuControllerService : ScriptableObject
         }
         EventSystem.current.SetSelectedGameObject(prev.SelectedObject);
         if(!prev.gameObject.activeInHierarchy) prev.Show();
+    }
+
+    void OnControlSchemeChange(InputControlScheme scheme) {
+        ControlSchemeButtonIcons icons = Array.Find(ControlSchemeIcons, (icons) => icons.Scheme == scheme.name);
+        if(icons == null) {
+            Debug.LogWarning($"no icons found for scheme {scheme.name}");
+            return;
+        }
+        foreach (UIElement page in Pages) {
+            page.SetButtonIcons(icons.Icons);
+        }
+    }
+
+    [Serializable]
+    class ControlSchemeButtonIcons {
+        [Header("must match a Scheme name in the Input Actions Asset")]
+        [SerializeField] string _scheme;
+        public string Scheme => _scheme;
+        [field:SerializeField] public UIElement.UIButtonIconSet Icons { get; set; }
     }
 }
