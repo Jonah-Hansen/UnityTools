@@ -14,27 +14,36 @@ public abstract class InputService<T>: ScriptableObject
 where T : IInputActionCollection2, IDisposable, new() 
 {
     public T Controls { get; private set; }
+
     InputActionMap _currentActionMap;
     public InputActionMap CurrentActionMap {
         get => _currentActionMap;
         set {
-            if(value == _currentActionMap) return;
+            if(value == _currentActionMap) {
+                return;
+            }
             _currentActionMap?.Disable();
             _currentActionMap = value;
             _currentActionMap.Enable();
         }
     }
-    InputDevice _device;
+
+    private InputDevice _device;
     public InputDevice CurrentDevice { get => _device; private set {
-        if(value == _device) return;
+        if(value == _device) {
+            return;
+        }
         _device = value;
         CurrentControlScheme = GetControlScheme(value);
         DeviceChangedEvent?.Invoke(value);
     }}
-    InputControlScheme _controlScheme;
+    
+    private InputControlScheme _controlScheme;
     public InputControlScheme CurrentControlScheme { get => _controlScheme; 
         private set {
-            if(value == _controlScheme) return;
+            if(value == _controlScheme) {
+                return;
+            }
             _controlScheme = value;
             ControlSchemeChangedEvent?.Invoke(value);
         }
@@ -94,7 +103,7 @@ where T : IInputActionCollection2, IDisposable, new()
     //   else return defaultScheme;
     // }
 
-    void OnEnable() {
+    private void OnEnable() {
         // initialize properties
         Controls = new();
         // control scheme and device configuration changes
@@ -104,20 +113,28 @@ where T : IInputActionCollection2, IDisposable, new()
         Initialize();
     }
 
-    void OnDisable() {
+    private void OnDisable() {
         InputSystem.onDeviceChange -= OnDeviceConfigurationChange;
         InputSystem.onEvent -= OnDeviceChange;
     }
 
-    void OnDeviceConfigurationChange(InputDevice device, InputDeviceChange change) => DeviceConfigChangedEvent?.Invoke(device, change);
+    private void OnDeviceConfigurationChange(InputDevice device, InputDeviceChange change) {
+        DeviceConfigChangedEvent?.Invoke(device, change);
+    }
 
     /// <summary> sets CurrentDevice and CurrentControlScheme when active device changes </summary>
-    void OnDeviceChange(InputEventPtr eventPtr, InputDevice device)  {
-        if (device == CurrentDevice) return;
+    private void OnDeviceChange(InputEventPtr eventPtr, InputDevice device)  {
+        if (device == CurrentDevice) {
+            return;
+        }
         // ignore irelevent events
-        if (eventPtr.type != StateEvent.Type) return;
+        if (eventPtr.type != StateEvent.Type) {
+            return;
+        }
         // ignore noise
-        if (!eventPtr.EnumerateChangedControls(device, 0.01F).Any()) return;
+        if (!eventPtr.EnumerateChangedControls(device, 0.01F).Any()) {
+            return;
+        }
         // set new device
         CurrentDevice = device;
     }
