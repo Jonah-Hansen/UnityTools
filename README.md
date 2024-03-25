@@ -5,8 +5,8 @@ currently included
 ### `PlayerInputService`
   an alternative to the PlayerInput monobehaviour component that works well with the Unity Input System. connects with an `InputActionsAsset` generated c# class.
 
-### `MenuControllerService`
-  extendable scriptable object service for managing UI windows with a Stack structure. Connects to a `PlayerInputService` asset for closing windows with a 'cancel' button and uses `UIElement` Pages.
+### `MenuController`
+  extendable monobehaviour for managing UI windows with a Stack structure. Connects to a `PlayerInputService` asset for closing windows with a 'cancel' button and uses `UIElement` Pages. simply extend and attach to an empty game object in your main canvas. pages can be added as children.
   
 ### `UIElement`
   extendable monobehaviour for UI game objects to work with a `MenuControllerService`.
