@@ -4,35 +4,26 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
-    
+using UnityEngine.UI;
+
+[RequireComponent(typeof(Image))]
 public abstract class MenuController : MonoBehaviour
 {
     [SerializeField] private PlayerControlsInputService _inputService;
     private PlayerControlsInputService InputService => _inputService;
 
-    [SerializeField] private ControlSchemeButtonIcons[] _controlSchemeIcons;
-    private ControlSchemeButtonIcons[] ControlSchemeIcons => _controlSchemeIcons;
-
     [SerializeField] private UIElement[] _pages;
     private UIElement[] Pages => _pages;
-    
+
     private Stack<UIElement> Stack { get; } = new();
+
+    private Image Background { get; set; }
 
     public event Action MenuClosedEvent;
     public event Action MenuOpenedEvent;
 
-    protected virtual void Start() {
-        Stack.Clear();
-        foreach(UIElement page in Pages) {
-            page.Initialize();
-        }
-    }
-
-    protected abstract void SubscribeEvents();
-    protected abstract void UnsubscribeEvents();
-
     /// <summary> opens the first page in the menu </summary>
-    public void Open() {
+    public virtual void Open() {
         if(Stack.TryPeek(out UIElement top)) {
             return;
         }
@@ -41,16 +32,26 @@ public abstract class MenuController : MonoBehaviour
         OpenMenu();
     }
 
+    protected abstract void SubscribeEvents();
+    protected abstract void UnsubscribeEvents();
+
+    protected virtual void Start() {
+        Stack.Clear();
+        Background.enabled = false;
+        foreach(UIElement page in Pages) {
+            page.Initialize();
+        }
+    }
+
     protected T GetPage<T>() where T : UIElement {
         for(int i = 0; i < Pages.Length; i++) {
             if(Pages[i] is T page) {
                 return page;
             }
-        } 
+        }
         Debug.LogError($"no page of type {typeof(T)} found");
         return null;
     }
-    
     protected bool TryGetPage<T>(out T page) where T : UIElement {
         page = null;
         for(int i = 0; i < Pages.Length; i++) {
@@ -58,7 +59,8 @@ public abstract class MenuController : MonoBehaviour
                 page = found;
                 return true;
             }
-        } 
+        }
+        Debug.LogError($"no page of type {typeof(T)} found");
         return false;
     }
 
@@ -76,11 +78,14 @@ public abstract class MenuController : MonoBehaviour
         Stack.Push(page);
         page.Show();
     }
-    
+
     /// <summary> Closes the entire Menu </summary>
     protected void Close() {
         while(Stack.Count > 0) Back(true);
         MenuClosedEvent?.Invoke();
+        Background.enabled = false;
+        InputService.CurrentActionMap = InputService.Controls.PlayerCharacter;
+        InputService.UICancelEvent -= Back;
     }
 
     protected void Back() {
@@ -88,21 +93,31 @@ public abstract class MenuController : MonoBehaviour
     }
 
     private void OpenMenu() {
+        Background.enabled = true;
         InputService.CurrentActionMap = InputService.Controls.UI;
         MenuOpenedEvent?.Invoke();
         OnControlSchemeChange(InputService.CurrentControlScheme);
+        InputService.UICancelEvent += Back;
+    }
+
+    private void Awake() {
+        Background = GetComponent<Image>();
+    }
+
+    private void Reset() {
+        // default background is black at 50% opacity
+        GetComponent<Image>().color = new Color(0,0,0,0.5f);
     }
 
     private void OnEnable() {
         SubscribeEvents();
-        InputService.UICancelEvent += Back;
         InputService.ControlSchemeChangedEvent += OnControlSchemeChange;
     }
 
     private void OnDisable() {
-    UnsubscribeEvents();
-        InputService.UICancelEvent -= Back;
+        UnsubscribeEvents();
         InputService.ControlSchemeChangedEvent -= OnControlSchemeChange;
+        InputService.UICancelEvent -= Back;
     }
 
     private void Back(bool force) {
@@ -118,21 +133,13 @@ public abstract class MenuController : MonoBehaviour
     }
 
     private void OnControlSchemeChange(InputControlScheme scheme) {
-        ControlSchemeButtonIcons icons = Array.Find(ControlSchemeIcons, (icons) => icons.Scheme == scheme.name);
+        InputService.UIButtonIconSet icons = Array.Find(InputService.UIButtonIcons, (icons) => icons.Scheme == scheme.name);
         if(icons == null) {
             Debug.LogWarning($"no icons found for scheme {scheme.name}");
             return;
         }
         foreach (UIElement page in Pages) {
-            page.SetButtonIcons(icons.Icons);
+            page.SetButtonIcons(icons);
         }
-    }
-
-    [Serializable]
-    private class ControlSchemeButtonIcons {
-        [Header("must match a Scheme name in the Input Actions Asset")]
-        [SerializeField] string _scheme;
-        public string Scheme => _scheme;
-        [field:SerializeField] public UIElement.UIButtonIconSet Icons { get; set; }
     }
 }

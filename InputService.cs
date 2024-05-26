@@ -4,6 +4,8 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
 
+// the concept for this system of using the unity input system with events and without needing a PlayerInput component is inspired by this video https://www.youtube.com/watch?v=ZHOWqF-b51k&t=1098s
+
 /// <summary>
 /// Input service base class. <para/>
 /// <c>T</c> is the class from your InputActionsAsset generated c# file<br/>
@@ -11,12 +13,14 @@ using UnityEngine.InputSystem.LowLevel;
 /// </summary>
 /// <typeparam name="T"> the class from your InputActionsAsset generated c# file</typeparam>
 public abstract class InputService<T>: ScriptableObject
-where T : IInputActionCollection2, IDisposable, new() 
+where T : IInputActionCollection2, IDisposable, new()
 {
+    [field:SerializeField] public UIButtonIconSet[] UIButtonIcons { get; set; }
     public T Controls { get; private set; }
 
-    InputActionMap _currentActionMap;
-    public InputActionMap CurrentActionMap {
+    #nullable enable
+    private InputActionMap? _currentActionMap;
+    public InputActionMap? CurrentActionMap {
         get => _currentActionMap;
         set {
             if(value == _currentActionMap) {
@@ -24,9 +28,12 @@ where T : IInputActionCollection2, IDisposable, new()
             }
             _currentActionMap?.Disable();
             _currentActionMap = value;
-            _currentActionMap.Enable();
+            _currentActionMap?.Enable();
+            Debug.Log($"changed action map to {value?.name}");
+            ActionMapChangedEvent?.Invoke(value);
         }
     }
+    #nullable disable
 
     private InputDevice _device;
     public InputDevice CurrentDevice { get => _device; private set {
@@ -37,9 +44,9 @@ where T : IInputActionCollection2, IDisposable, new()
         CurrentControlScheme = GetControlScheme(value);
         DeviceChangedEvent?.Invoke(value);
     }}
-    
+
     private InputControlScheme _controlScheme;
-    public InputControlScheme CurrentControlScheme { get => _controlScheme; 
+    public InputControlScheme CurrentControlScheme { get => _controlScheme;
         private set {
             if(value == _controlScheme) {
                 return;
@@ -52,9 +59,33 @@ where T : IInputActionCollection2, IDisposable, new()
     #region subscribable events
     public event Action<InputDevice> DeviceChangedEvent;
     public event Action<InputControlScheme> ControlSchemeChangedEvent;
+    public event Action<InputActionMap> ActionMapChangedEvent;
     /// <summary> same as InputSystem.onDeviceChange </summary>
     public event Action<InputDevice, InputDeviceChange> DeviceConfigChangedEvent;
     #endregion
+
+    public void DisableControls()
+    {
+        if(CurrentActionMap != null && CurrentActionMap.enabled)
+        {
+            CurrentActionMap.Disable();
+        }
+    }
+
+    public void EnableControls()
+    {
+        try
+        {
+            if(!CurrentActionMap.enabled)
+            {
+                CurrentActionMap.Enable();
+            }
+        }
+        catch(NullReferenceException error)
+        {
+            Debug.LogError("Current Action Map is not set \n" + error);
+        }
+    }
 
     /// <summary>
     /// 1. create an instance of your Action Callbacks class which extends the InputActionAsset's I<actionmap>Actions interfaces<para/>
@@ -73,11 +104,12 @@ where T : IInputActionCollection2, IDisposable, new()
     //     Controls.PlayerCharacter.SetCallbacks(ActionCallbacks);
     //     Controls.PlayerCharacter.Disable();
     //     Controls.UI.SetCallbacks(ActionCallbacks);
-    //     Controls.UI.Disable();  
+    //     Controls.UI.Disable();
     //     CurrentActionMap = Controls.UI;
     // }
 
-    //? example Callbacks class 
+    //? example Callbacks class
+    // public event Action UICancelEvent;
     // class Callbacks : PlayerControls.IGameplayActions, PlayerControls.IUIActions {
     //     PlayerControlsInputService InputService { get; set; }
     //     public Callbacks(PlayerControlsInputService service) => InputService = service;
@@ -86,7 +118,7 @@ where T : IInputActionCollection2, IDisposable, new()
     //     }
     // }
 
-    /// <summary> 
+    /// <summary>
     /// returns the control scheme associated with the given device <para/>
     /// <example><code>
     /// InputControlScheme defaultScheme = Controls.GamepadScheme; <br/>
@@ -95,12 +127,12 @@ where T : IInputActionCollection2, IDisposable, new()
     /// else return defaultScheme; <br/>
     /// </code></example>
     /// </summary>
-    protected abstract InputControlScheme GetControlScheme(InputDevice device); 
+    protected abstract InputControlScheme GetControlScheme(InputDevice device);
     // {
     //   InputControlScheme defaultScheme = Controls.GamepadScheme;
     //   if(device is Gamepad) return Controls.GamepadScheme;
     //   if(device is Keyboard) return Controls.KeyboardScheme;
-    //   else return defaultScheme;
+    //   return defaultScheme;
     // }
 
     private void OnEnable() {
@@ -137,5 +169,25 @@ where T : IInputActionCollection2, IDisposable, new()
         }
         // set new device
         CurrentDevice = device;
+    }
+
+    [Serializable]
+    public class UIButtonIconSet {
+        /// <summary>
+        /// must match a scheme name in Controls.controlSchemes
+        /// </summary>
+        // [SerializeField] private string _scheme;
+        // public string Scheme => _scheme;
+        // [SerializeField] private IconSet _confirm;
+        // public IconSet Confirm => _confirm;
+        // [SerializeField] private IconSet _cancel;
+        // public IconSet Cancel => _cancel;
+
+        // [Serializable] public struct IconSet
+        // {
+        //     [SerializeField] public Sprite primary;
+        //     [SerializeField] public Sprite secondary;
+        //     [SerializeField] public Sprite alternate;
+        // }
     }
 }
